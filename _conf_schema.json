@@ -1,17 +1,41 @@
 {
   "qweather_api_key": {
-      "description": "和风天气api_key",
+      "description": "和风天气ApiKey",
       "type": "string",
-      "hint": "和风天气api_key",
+      "hint": "和风天气ApiKey",
       "obvious_hint": true,
       "default": ""
   },
   "sub_provider_id": {
       "description": "LLM子模型",
       "type": "string",
-      "hint": "LLM子模型",
+      "hint": "独立的LLM模型, 与会话LLM隔离",
       "obvious_hint": true,
       "default": ""
+  },
+  "enable_stt": {
+      "description": "是否启用语音识别",
+      "type": "bool",
+      "default": false
+  },
+  "dify_stt_key": {
+      "description": "Dify ApiKey",
+      "type": "string",
+      "hint": "启用语音识别时必填",
+      "obvious_hint": false,
+      "default": ""
+  },
+  "enable_tts": {
+      "description": "是否启用语音回复",
+      "type": "bool",
+      "hint": "仅启用语音识别后有效",
+      "default": false
+  },
+  "tts_vioce": {
+      "description": "TTS音色",
+      "type": "string",
+      "hint": "选择TTS音色",
+      "default": "99"
   },
   "oil_report_provinces": {
         "description": "每日油价报告省份",
