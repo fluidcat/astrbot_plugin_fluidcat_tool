@@ -93,14 +93,14 @@ class FluidCatToolPlugin(Star):
     @filter.command("tts1")
     async def tts_command(self, event: AstrMessageEvent, on_off:str=None):
         """控制TTS语音回复服务的开关状态
-        Args: 
+        Args:
             on_off(string): 开关值(支持on/off, 1/0, true/false, enable/disable, 开/关等)
         """
         if on_off is not None:
             # 定义开关关键词（集合提升查询效率）
             enable = {'on', '1', 'true', 'enable', 'up', 'start', 'yes', 'y', '开'}
             disable = {'off', '0', 'false', 'disable', 'down', 'stop', 'no', 'n', '关'}
-            
+
             # 处理数字和字符串输入
             try:
                 self.enable_tts = float(on_off) > 0
@@ -113,13 +113,13 @@ class FluidCatToolPlugin(Star):
                 else:
                     yield event.plain_result(f"参数错误: {on_off} (可用: on/off, 1/0等)")
                     return
-            
+
             # 保存配置
             self.config.update(enable_tts=self.enable_tts)
             self.config.save_config()
 
             yield event.plain_result(f"TTS服务已{'开启' if self.enable_tts else '关闭'}")
-    
+
     @filter.command("music")
     async def get_music(self, event: AstrMessageEvent, keyword:str):
         """点歌服务
@@ -135,7 +135,7 @@ class FluidCatToolPlugin(Star):
                     ret_json = ret_json.get('data', {})
         except BaseException:
             yield event.plain_result("点歌服务暂时不可用")
-        
+
         if not ret_json.get("music_url"):
             yield event.plain_result(f"搜索不到音乐：{keyword}")
 
@@ -162,7 +162,7 @@ class FluidCatToolPlugin(Star):
         music.title = title
         music.content = xml
         yield event.chain_result([music])
-        
+
 
 
     @filter.command("stt1")
@@ -175,7 +175,7 @@ class FluidCatToolPlugin(Star):
             # 定义开关关键词（集合提升查询效率）
             enable = {'on', '1', 'true', 'enable', 'up', 'start', 'yes', 'y', '开'}
             disable = {'off', '0', 'false', 'disable', 'down', 'stop', 'no', 'n', '关'}
-            
+
             # 处理数字和字符串输入
             try:
                 self.enable_stt = float(on_off) > 0
@@ -188,7 +188,7 @@ class FluidCatToolPlugin(Star):
                 else:
                     yield event.plain_result(f"参数错误: {on_off} (可用: on/off, 1/0等)")
                     return
-            
+
             # 保存配置
             self.config.update(enable_stt=self.enable_stt)
             self.config.save_config()
@@ -243,7 +243,7 @@ class FluidCatToolPlugin(Star):
 
                     # 完成消息处理流程后清理临时文件
                     self.temp_file_clean(event, [file_path])
-    
+
     def temp_file_clean(self, event: AstrMessageEvent, temps:list=None):
         """完成消息处理流程后清理临时文件"""
         clean_sets = event.get_extra("clean_sets") or []
@@ -254,23 +254,23 @@ class FluidCatToolPlugin(Star):
                 clean_sets.append(t)
             event.set_extra("clean_sets", clean_sets)
             return
-        
+
         # temps没有值，则清理event中的临时文件
         if not clean_sets:
             return
         for file_path in clean_sets:
             try:
-                path = Path(file_path)                
+                path = Path(file_path)
                 if not path.exists():
-                    continue                
+                    continue
                 if path.is_file():
                     path.unlink()  # 删除文件
                 elif path.is_dir():
-                    shutil.rmtree(path)  # 递归删除目录 
+                    shutil.rmtree(path)  # 递归删除目录
             except Exception as e:
                 continue
-        
-        
+
+
 
     @filter.after_message_sent()
     async def after_message_sent(self, event: AstrMessageEvent):

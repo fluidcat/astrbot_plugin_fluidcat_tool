@@ -5,6 +5,7 @@ from pathlib import Path
 import aiohttp
 from astrbot.core import AstrBotConfig
 from astrbot.core.star import Context
+from astrbot.core import logger
 
 
 class STT:
