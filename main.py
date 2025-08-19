@@ -24,7 +24,7 @@ from .weather_tool import WeatherTool
     "astrbot_plugin_fluidcat_tool",
     "fluidcat",
     "fluidcat 工具",
-    "1.0.0",
+    "1.0.1",
     "https://github.com/fluidcat/astrbot_plugin_fluidcat_tool",
 )
 class FluidCatToolPlugin(Star):
