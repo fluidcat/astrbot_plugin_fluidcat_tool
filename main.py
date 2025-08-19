@@ -25,7 +25,7 @@ from .weather_tool import WeatherTool
     "fluidcat",
     "fluidcat 工具",
     "1.0.0",
-    "",
+    "https://github.com/fluidcat/astrbot_plugin_fluidcat_tool",
 )
 class FluidCatToolPlugin(Star):
 
@@ -91,7 +91,7 @@ class FluidCatToolPlugin(Star):
         yield event.plain_result('已删除记忆')
 
     @filter.command("tts1")
-    async def tts_command(self, event: AstrMessageEvent, on_off:str=None):
+    async def tts_command(self, event: AstrMessageEvent, on_off: str = None):
         """控制TTS语音回复服务的开关状态
         Args:
             on_off(string): 开关值(支持on/off, 1/0, true/false, enable/disable, 开/关等)
@@ -121,7 +121,7 @@ class FluidCatToolPlugin(Star):
             yield event.plain_result(f"TTS服务已{'开启' if self.enable_tts else '关闭'}")
 
     @filter.command("music")
-    async def get_music(self, event: AstrMessageEvent, keyword:str):
+    async def get_music(self, event: AstrMessageEvent, keyword: str):
         """点歌服务
         Args:
             keyword(string): 点歌搜索词
@@ -163,10 +163,8 @@ class FluidCatToolPlugin(Star):
         music.content = xml
         yield event.chain_result([music])
 
-
-
     @filter.command("stt1")
-    async def stt_command(self, event: AstrMessageEvent, on_off:str=None):
+    async def stt_command(self, event: AstrMessageEvent, on_off: str = None):
         """控制STT语音回复服务的开关状态
         Args:
             on_off(string): 开关值(支持on/off, 1/0, true/false, enable/disable, 开/关等)
@@ -227,7 +225,7 @@ class FluidCatToolPlugin(Star):
                 except BaseException as e:
                     logger.error(traceback.format_exc())
                     logger.error(f"语音转文本失败: {e}")
-    
+
     @filter.on_decorating_result()
     async def text_to_vioce(self, event: AstrMessageEvent):
         """使用语音回复语音消息"""
@@ -244,7 +242,7 @@ class FluidCatToolPlugin(Star):
                     # 完成消息处理流程后清理临时文件
                     self.temp_file_clean(event, [file_path])
 
-    def temp_file_clean(self, event: AstrMessageEvent, temps:list=None):
+    def temp_file_clean(self, event: AstrMessageEvent, temps: list = None):
         """完成消息处理流程后清理临时文件"""
         clean_sets = event.get_extra("clean_sets") or []
 
@@ -269,8 +267,6 @@ class FluidCatToolPlugin(Star):
                     shutil.rmtree(path)  # 递归删除目录
             except Exception as e:
                 continue
-
-
 
     @filter.after_message_sent()
     async def after_message_sent(self, event: AstrMessageEvent):
