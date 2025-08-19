@@ -1,5 +1,5 @@
 name: astrbot_plugin_fluidcat_tool
 author: fluidcat
-version: 1.0.0
+version: 1.0.1
 description: "fluidcat 工具"
-repo:
+repo: https://github.com/fluidcat/astrbot_plugin_fluidcat_tool
