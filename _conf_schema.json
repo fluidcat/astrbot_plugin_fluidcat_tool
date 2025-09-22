@@ -11,7 +11,8 @@
       "type": "string",
       "hint": "独立的LLM模型, 与会话LLM隔离",
       "obvious_hint": true,
-      "default": ""
+      "default": "",
+      "_special": "select_provider"
   },
   "enable_stt": {
       "description": "是否启用语音识别",
