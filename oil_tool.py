@@ -1,9 +1,11 @@
+import asyncio
 import json
 from datetime import datetime
 
 import aiohttp
 from astrbot.core import AstrBotConfig
 from astrbot.core.star import Context
+from lxml import etree
 
 from .daily_cache import daily_cache
 
@@ -22,9 +24,9 @@ class OilTool:
     async def get_daily_oil_report(self, provinces: list = None):
         provinces = provinces if provinces else self.oil_report_provinces
 
-        list_json = await self.get_oil_data()
+        price_json = await self.jina_oil_data()
         forecast = await self.get_oil_forecast()
-        oil = [[item.get(p) for p in provinces] for item in list_json]
+        oil = [[price_json.get(item, {}).get(p) for p in provinces] for item in ["92", "95", "98", "chaiyou"]]
 
         _92, _95, _98, _cy = oil
         width = 7
@@ -46,9 +48,9 @@ class OilTool:
         return msg.strip()
 
     async def get_oil_json(self):
-        list_json = await self.get_oil_data()
+        price_json = await self.jina_oil_data()
         forecast = await self.get_oil_forecast()
-        return {"province_price": list_json, "forecast": forecast}
+        return {"province_price": price_json, "forecast": forecast}
 
     @daily_cache
     async def get_oil_data(self):
@@ -62,6 +64,40 @@ class OilTool:
                     data.append(resp.get('data'))
                 else:
                     data.append({})
+        return data
+
+    @daily_cache
+    async def jina_oil_data(self):
+        urls = {
+            "92": "http://www.qiyoujiage.com/92.shtml",
+            "95": "http://www.qiyoujiage.com/95.shtml",
+            "98": "http://www.qiyoujiage.com/98.shtml",
+            "chaiyou": "http://www.qiyoujiage.com/chaiyou.shtml",
+        }
+        data = {}
+        provider = self.context.get_provider_by_id(self.sub_provider)
+        system_prompt = '整理出所有城市油价数据,输出无markdown格式无换行的【无```json】的json。严格按照格式输出：{"北京": 6.84,"上海": 6.81,...}'
+        session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+
+        async def generate_json(_rating, _url):
+            try:
+                async with session.get(_url) as resp:
+                    html = await resp.text()
+                html.replace('</td>', ',</td>').replace('</tr>', ';</tr>')
+                root_elem = etree.HTML(html).xpath("//table")
+                inner_text = root_elem and root_elem[0].xpath("string(.)").replace(',;', ';')
+                llm_response = await provider.text_chat(prompt=inner_text, system_prompt=system_prompt)
+                data[_rating] = json.loads(llm_response.completion_text.strip())
+                __import__("astrbot.core").logger.info(f"{_rating}: {data[_rating]}")
+            except Exception:
+                pass
+
+        task = []
+        for rating, url in urls.items():
+            task.append(generate_json(rating, url))
+        await asyncio.gather(*task)
+        await session.close()
+
         return data
 
     @daily_cache
@@ -79,7 +115,7 @@ class OilTool:
         if forecast_resp.get('code', 0) == 200 and forecast_resp.get('data', None):
             forecast_content = forecast_resp.get('data', {}).get('content', '')
         if not forecast_content:
-            return {}
+            return None
 
         provider = self.context.get_provider_by_id(self.sub_provider)
         llm_response = await provider.text_chat(prompt=forecast_content, system_prompt=self.system_prompt)

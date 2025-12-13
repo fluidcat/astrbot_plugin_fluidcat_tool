@@ -30,6 +30,7 @@ from .weather_tool import WeatherTool
 class FluidCatToolPlugin(Star):
 
     def __init__(self, context: Context, config: AstrBotConfig):
+        self.hook_m1 = None
         self.context = context
         self.config = config
         self.weather_tool = WeatherTool(context, config, self)
@@ -42,6 +43,22 @@ class FluidCatToolPlugin(Star):
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+        self.hook_m1 = __import__("data.plugins.astrbot_plugin_sy.command_utils", fromlist=["SessionHelper"])
+
+        def hook_func(event: AstrMessageEvent, group_id: str, unique_session: bool):
+            # 标准umo
+            if len(group_id.split(":")) == 3:
+                return group_id
+            else:
+                return self.hook_m1.SessionHelper.hook_origin_build_remote_session_id(event, group_id, unique_session)
+
+        self.hook_m1.SessionHelper.hook_origin_build_remote_session_id = self.hook_m1.SessionHelper.build_remote_session_id
+        self.hook_m1.SessionHelper.build_remote_session_id = hook_func
+
+    async def terminate(self):
+        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+        if self.hook_m1 and self.hook_m1.SessionHelper.hook_origin_build_remote_session_id:
+            self.hook_m1.SessionHelper.build_remote_session_id = self.hook_m1.SessionHelper.hook_origin_build_remote_session_id
 
     @filter.llm_tool("get_weather")
     async def get_weather_tool(self, event, location: str):
@@ -81,14 +98,6 @@ class FluidCatToolPlugin(Star):
         report = await self.oil_tool.get_daily_oil_report([x.strip() for x in province.split(",")] if province else [])
 
         yield event.plain_result(report)
-
-    @filter.command("rmmem")
-    async def rm_memory(self, event: AstrMessageEvent):
-        """删除当前记忆
-        """
-        await self.context.conversation_manager.delete_conversation(event.unified_msg_origin)
-
-        yield event.plain_result('已删除记忆')
 
     @filter.command("tts1")
     async def tts_command(self, event: AstrMessageEvent, on_off: str = None):
@@ -163,6 +172,16 @@ class FluidCatToolPlugin(Star):
         music.content = xml
         yield event.chain_result([music])
 
+    @filter.command("set_level")
+    async def set_level(self, event: AstrMessageEvent, level: str = "INFO"):
+        from astrbot import logger as logger1
+        from astrbot.core import logger as logger2
+
+        logger1.setLevel(level)
+        logger2.setLevel(level)
+
+        yield event.plain_result(f"日志级别已设置为 {level}")
+
     @filter.command("stt1")
     async def stt_command(self, event: AstrMessageEvent, on_off: str = None):
         """控制STT语音回复服务的开关状态
@@ -191,7 +210,7 @@ class FluidCatToolPlugin(Star):
             self.config.update(enable_stt=self.enable_stt)
             self.config.save_config()
 
-            event.clear_result
+            event.clear_result()
 
             yield event.plain_result(f"STT服务已{'开启' if self.enable_stt else '关闭'}")
 
@@ -272,6 +291,3 @@ class FluidCatToolPlugin(Star):
     async def after_message_sent(self, event: AstrMessageEvent):
         # 完成消息处理流程后清理临时文件
         self.temp_file_clean(event)
-
-    async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
