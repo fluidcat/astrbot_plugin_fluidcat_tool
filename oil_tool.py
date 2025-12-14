@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 
 import aiohttp
-from astrbot.core import AstrBotConfig
+from astrbot.core import AstrBotConfig, logger
 from astrbot.core.star import Context
 from lxml import etree
 
@@ -18,7 +18,8 @@ class OilTool:
 
         self.oil_report_provinces = config.get("oil_report_provinces", "")
         self.sub_provider = config.get("sub_provider_id", "")
-        self.system_prompt = '总结文案，输出下次油价调整时间以及预测涨跌详细信息(元/吨和元/升)。输出非md文本：{"next_time": ' \
+        self.system_prompt = '重要：输出前检查——若包含```json或```，直接删除后再输出；' \
+                             '总结文案，输出下次油价调整时间以及预测涨跌详细信息(元/吨和元/升)。输出非md文本：{"next_time": ' \
                              '"时间"，"forecast"："上调xxxx或者下调xxxx或者搁浅"}'
 
     async def get_daily_oil_report(self, provinces: list = None):
@@ -76,7 +77,9 @@ class OilTool:
         }
         data = {}
         provider = self.context.get_provider_by_id(self.sub_provider)
-        system_prompt = '整理出所有城市油价数据,输出无markdown格式无换行的【无```json】的json。严格按照格式输出：{"北京": 6.84,"上海": 6.81,...}'
+        system_prompt = '重要：输出前检查——若包含```json或```，直接删除后再输出；' \
+                        '整理出所有城市油价数据,输出无任何markdown语法的无换行的json。' \
+                        '严格按照格式输出：{"北京": 6.84,"上海": 6.81,...}'
         session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
 
         async def generate_json(_rating, _url):
@@ -86,9 +89,11 @@ class OilTool:
                 html.replace('</td>', ',</td>').replace('</tr>', ';</tr>')
                 root_elem = etree.HTML(html).xpath("//table")
                 inner_text = root_elem and root_elem[0].xpath("string(.)").replace(',;', ';')
+                logger.debug(f"解析「{_rating}」html 成功：{inner_text}")
                 llm_response = await provider.text_chat(prompt=inner_text, system_prompt=system_prompt)
-                data[_rating] = json.loads(llm_response.completion_text.strip())
-                __import__("astrbot.core").logger.info(f"{_rating}: {data[_rating]}")
+                llm_text = llm_response.completion_text.strip().removeprefix("```json").removesuffix("```").strip()
+                logger.debug(f"使用「{provider.meta().id}」生成「{_rating}」json 完成：{llm_text}")
+                data[_rating] = json.loads(llm_text)
             except Exception:
                 pass
 
@@ -121,6 +126,7 @@ class OilTool:
         llm_response = await provider.text_chat(prompt=forecast_content, system_prompt=self.system_prompt)
 
         try:
-            return json.loads(llm_response.completion_text.strip())
+            llm_text = llm_response.completion_text.strip().removeprefix("```json").removesuffix("```").strip()
+            return json.loads(llm_text)
         except Exception as e:
             return {}
