@@ -81,21 +81,34 @@ class OilTool:
                         '整理出所有城市油价数据,输出无任何markdown语法的无换行的json。' \
                         '严格按照格式输出：{"北京": 6.84,"上海": 6.81,...}'
         session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+        header = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Host": "www.qiyoujiage.com",
+            "Pragma": "no-cache",
+            "Upgrade-Insecure-Requests": "1"
+        }
 
         async def generate_json(_rating, _url):
-            try:
-                async with session.get(_url) as resp:
-                    html = await resp.text()
-                html.replace('</td>', ',</td>').replace('</tr>', ';</tr>')
-                root_elem = etree.HTML(html).xpath("//table")
-                inner_text = root_elem and root_elem[0].xpath("string(.)").replace(',;', ';')
-                logger.debug(f"解析「{_rating}」html 成功：{inner_text}")
-                llm_response = await provider.text_chat(prompt=inner_text, system_prompt=system_prompt)
-                llm_text = llm_response.completion_text.strip().removeprefix("```json").removesuffix("```").strip()
-                logger.debug(f"使用「{provider.meta().id}」生成「{_rating}」json 完成：{llm_text}")
-                data[_rating] = json.loads(llm_text)
-            except Exception:
-                pass
+            retry = 1
+            while retry <= 3:
+                try:
+                    async with session.get(_url, headers=header) as resp:
+                        html = await resp.text()
+                    html.replace('</td>', ',</td>').replace('</tr>', ';</tr>')
+                    root_elem = etree.HTML(html).xpath("//table")
+                    inner_text = root_elem and root_elem[0].xpath("string(.)").replace(',;', ';')
+                    logger.debug(f"解析「{_rating}」html 成功：{inner_text}")
+                    llm_response = await provider.text_chat(prompt=inner_text, system_prompt=system_prompt)
+                    llm_text = llm_response.completion_text.strip().removeprefix("```json").removesuffix("```").strip()
+                    logger.debug(f"使用「{provider.meta().id}」生成「{_rating}」json 完成：{llm_text}")
+                    data[_rating] = json.loads(llm_text)
+                    break
+                except Exception as ex:
+                    logger.warning(f"rating「{_rating}」，retry：{retry}，generate_json error: {ex}")
+                    retry += 1
 
         task = []
         for rating, url in urls.items():
