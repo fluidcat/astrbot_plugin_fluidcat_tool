@@ -119,7 +119,8 @@ def daily_cache(func):
             return daily_cache_instance[cache_key]
         # 否则调用函数，并将结果存入缓存
         result = func(*args, **kwargs)
-        daily_cache_instance[cache_key] = result
+        if result:
+            daily_cache_instance[cache_key] = result
         return result
 
     @functools.wraps(func)
@@ -131,7 +132,8 @@ def daily_cache(func):
             return daily_cache_instance[cache_key]
         # 否则调用异步函数，并将结果存入缓存
         result = await func(*args, **kwargs)
-        daily_cache_instance[cache_key] = result
+        if result:
+            daily_cache_instance[cache_key] = result
         return result
 
     # 根据函数类型返回对应的包装器
