@@ -3,7 +3,8 @@ import json
 from datetime import datetime
 
 import aiohttp
-from astrbot.core import AstrBotConfig, logger
+from astrbot.core import AstrBotConfig
+from astrbot import logger
 from astrbot.core.star import Context
 from lxml import etree
 
