@@ -6,7 +6,7 @@ import aiohttp
 from astrbot.core import AstrBotConfig
 from astrbot import logger
 from astrbot.core.star import Context
-from lxml import etree
+from lxml import etree, html
 
 from .daily_cache import daily_cache
 
@@ -69,7 +69,7 @@ class OilTool:
         return data
 
     @daily_cache
-    async def jina_oil_data(self):
+    async def jina_oil_data_old(self):
         urls = {
             "92": "http://www.qiyoujiage.com/92.shtml",
             "95": "http://www.qiyoujiage.com/95.shtml",
@@ -120,7 +120,7 @@ class OilTool:
         return data
 
     @daily_cache
-    async def get_oil_forecast(self):
+    async def get_oil_forecast_old(self):
         forecast_url = "https://r.jina.ai/http://www.qiyoujiage.com/"
         headers = {
             'Accept': 'application/json',
@@ -144,3 +144,88 @@ class OilTool:
             return json.loads(llm_text)
         except Exception as e:
             return {}
+
+    @daily_cache
+    async def get_oil_forecast(self):
+        forecast_url = "https://proxy.86868866.xyz/http://www.qiyoujiage.com/"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(forecast_url) as resp:
+                    raw_html = await resp.text()
+            text = html.fromstring(raw_html).xpath('string(//*[@id="rightTop"]/div)').strip()
+            forecast_content = text.strip().split("\r\n")[0]
+        except Exception as xe:
+            logger.warning("get_oil_forecast 定位预测内容失败", exc_info=xe)
+            forecast_content = raw_html
+
+        if not forecast_content:
+            return {}
+
+        provider = self.context.get_provider_by_id(self.sub_provider)
+        try:
+            llm_response = await provider.text_chat(prompt=forecast_content, system_prompt=self.system_prompt)
+            llm_text = llm_response.completion_text.strip().removeprefix("```json").removesuffix("```").strip()
+            return json.loads(llm_text)
+        except Exception as e:
+            return {}
+
+    @daily_cache
+    async def jina_oil_data(self):
+        urls = {
+            "92": "https://youjia.chacha138.com/92haoyoujiage/",
+            "95": "https://youjia.chacha138.com/95haoyoujiage/",
+            "98": "https://youjia.chacha138.com/98haoyoujiage/",
+            "chaiyou": "https://youjia.chacha138.com/chaiyoujiage/",
+        }
+        data = {}
+        session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
+        header = {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+            , "accept-encoding": "gzip, deflate, br, zstd"
+            , "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7"
+            , "priority": "u=0, i"
+            , "referer": "https://youjia.chacha138.com/"
+            , "sec-ch-ua": '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"'
+            , "sec-ch-ua-mobile": "?0"
+            , "sec-ch-ua-platform": '"Windows"'
+            , "sec-fetch-dest": "document"
+            , "sec-fetch-mode": "navigate"
+            , "sec-fetch-site": "same-origin"
+            , "sec-fetch-user": "?1"
+            , "upgrade-insecure-requests": "1"
+            , "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+        }
+
+        async def generate_json(_rating, _url):
+            retry = 1
+            while retry <= 3:
+                try:
+                    async with session.get(_url, headers=header) as resp:
+                        html_raw = await resp.text()
+                    rows = html.fromstring(html_raw).xpath('//table//tr')[1:]
+                    oil_price = {}
+                    for tr in rows:
+                        province = tr.xpath('.//th/a/text()')
+                        price = tr.xpath('.//td[1]/text()')
+
+                        if province and price:
+                            province_name = province[0].strip()
+                            price_value = price[0].strip()
+                            try:
+                                oil_price[province_name] = float(price_value)
+                            except ValueError:
+                                oil_price[province_name] = price_value
+
+                    data[_rating] = oil_price
+                    break
+                except Exception as ex:
+                    logger.warning(f"rating「{_rating}」，retry：{retry}，generate_json error: {ex}")
+                    retry += 1
+
+        task = []
+        for rating, url in urls.items():
+            task.append(generate_json(rating, url))
+        await asyncio.gather(*task)
+        await session.close()
+
+        return data
