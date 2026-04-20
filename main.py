@@ -43,7 +43,7 @@ class FluidCatToolPlugin(Star):
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
-        self.hook_m1 = __import__("data.plugins.astrbot_plugin_sy.command_utils", fromlist=["SessionHelper"])
+        self.hook_m1 = __import__("data.plugins.ai_reminder.command_utils", fromlist=["SessionHelper"])
 
         def hook_func(event: AstrMessageEvent, group_id: str, unique_session: bool):
             # 标准umo
