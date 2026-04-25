@@ -43,10 +43,10 @@ class OilTool:
             msg += f"{p}　{_92[i]:{blank}<{width}}{_95[i]:{blank}<{width}}{_98[i]:{blank}<{width}}{_cy[i]}\n"
 
         if forecast.get('next_time', ''):
-            msg += f"\n下次调价：{forecast.get('next_time', '')}\n"
+            msg += f"\n最近调价：{forecast.get('next_time', '')}\n"
 
             if forecast.get('forecast', ''):
-                msg += f"目前预测：{forecast.get('forecast', '')}\n"
+                msg += f"调价信息：{forecast.get('forecast', '')}\n"
 
         return msg.strip()
 
@@ -164,9 +164,9 @@ class OilTool:
 
         provider = self.context.get_provider_by_id(self.sub_provider)
         examples = '\n'.join([
-            '{"next_time":"4月7日24时","forecast":"上调695元/吨(约0.55-0.67元/升)"}',
-            '{"next_time":"3月15日24时","forecast":"下调145元/吨(约0.11元/升-0.13元/升)"}',
-            '{"next_time":"8月12日24时","forecast":"上调30元/吨（搁浅调整范围）"}'
+            '{"next_time":"4月7日24时","forecast":"上调约0.55-0.67元/升(汽柴油上涨695元/吨)"}',
+            '{"next_time":"3月15日24时","forecast":"下调约0.11元/升-0.13元/升(汽柴油下跌145元/吨)"}',
+            '{"next_time":"8月12日24时","forecast":"搁浅（汽柴油上调30元/吨，搁浅调整范围）"}'
         ])
         try:
             contexts = [
