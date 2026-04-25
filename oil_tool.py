@@ -5,6 +5,7 @@ from datetime import datetime
 import aiohttp
 from astrbot.core import AstrBotConfig
 from astrbot import logger
+from astrbot.core.agent.message import Message
 from astrbot.core.star import Context
 from lxml import etree, html
 
@@ -162,8 +163,17 @@ class OilTool:
             return {}
 
         provider = self.context.get_provider_by_id(self.sub_provider)
+        examples = '\n'.join([
+            '{"next_time":"4月7日24时","forecast":"上调695元/吨(约0.55-0.67元/升)"}',
+            '{"next_time":"3月15日24时","forecast":"下调145元/吨(约0.11元/升-0.13元/升)"}',
+            '{"next_time":"8月12日24时","forecast":"上调30元/吨（搁浅调整范围）"}'
+        ])
         try:
-            llm_response = await provider.text_chat(prompt=forecast_content, system_prompt=self.system_prompt)
+            contexts = [
+                {"role": "user", "content": f"输出例子：{examples}。注意例子仅用于输出格式参考，具体数据没有参考价值"},
+                {"role": "user", "content": f"油价调整信息：{forecast_content}"},
+            ]
+            llm_response = await provider.text_chat(contexts=contexts, system_prompt=self.system_prompt)
             llm_text = llm_response.completion_text.strip().removeprefix("```json").removesuffix("```").strip()
             return json.loads(llm_text)
         except Exception as e:
