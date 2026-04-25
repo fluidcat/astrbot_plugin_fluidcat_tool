@@ -147,7 +147,7 @@ class OilTool:
 
     @daily_cache
     async def get_oil_forecast(self):
-        forecast_url = "https://proxy.86868866.xyz/http://www.qiyoujiage.com/"
+        forecast_url = "https://proxy.86868866.xyz/738864/http://www.qiyoujiage.com/"
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(forecast_url) as resp:
