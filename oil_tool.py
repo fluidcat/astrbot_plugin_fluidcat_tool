@@ -1,5 +1,6 @@
 import asyncio
 import json
+import ssl
 from datetime import datetime
 
 import aiohttp
@@ -20,15 +21,25 @@ class OilTool:
 
         self.oil_report_provinces = config.get("oil_report_provinces", "")
         self.sub_provider = config.get("sub_provider_id", "")
+        # guiguiya qiyoujiage chacha138
+        self.oil_source = config.get("oil_source", "guiguiya")
+        self.prefix_proxy = config.get("fc_prefix_proxy", "")
+        self.prefix_proxy = self.prefix_proxy.rstrip('/') + '/' if self.prefix_proxy else ""
+        self.default_prefix_proxy = "https://proxy.86868866.xyz/738864/"
         self.system_prompt = '重要：输出前检查——若包含```json或```，直接删除后再输出；' \
                              '总结文案，输出下次油价调整时间以及预测涨跌详细信息(元/吨和元/升)。输出非md文本：{"next_time": ' \
                              '"时间"，"forecast"："上调xxxx或者下调xxxx或者搁浅"}'
+        self.oil_source_func = {
+            "guiguiya": self.get_oil_data_from_guiguiya,
+            "qiyoujiage": self.get_oil_data_from_qiyoujiage,
+            "chacha138": self.get_oil_data_from_chacha138,
+        }
 
     async def get_daily_oil_report(self, provinces: list = None):
         provinces = provinces if provinces else self.oil_report_provinces
 
-        price_json = await self.jina_oil_data()
-        forecast = await self.get_oil_forecast()
+        oil_data = await self.get_oil_json()
+        price_json, forecast = oil_data['province_price'], oil_data['forecast']
         oil = [[price_json.get(item, {}).get(p) for p in provinces] for item in ["92", "95", "98", "chaiyou"]]
 
         _92, _95, _98, _cy = oil
@@ -51,31 +62,39 @@ class OilTool:
         return msg.strip()
 
     async def get_oil_json(self):
-        price_json = await self.jina_oil_data()
+        price_json = await self.get_oil_data()
         forecast = await self.get_oil_forecast()
         return {"province_price": price_json, "forecast": forecast}
 
-    @daily_cache
     async def get_oil_data(self):
+        method_name = f"get_oil_data_from_{self.oil_source}"
+        method = getattr(self, method_name)
+        if method:
+            return await method()
+        logger.error(f"method: {method_name} not found，can not get oil data")
+        return None
+
+    @daily_cache
+    async def get_oil_data_from_guiguiya(self):
         all_types = ['92', '95', '98', 'chaiyou']
-        data = []
+        data = {}
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
             for oil_type in all_types:
-                async with session.get("https://api.guiguiya.com/api/youjia?region=" + oil_type) as resp:
+                async with session.get(f"{self.prefix_proxy}https://api.guiguiya.com/api/youjia?region=" + oil_type) as resp:
                     resp = await resp.json()
                 if resp.get('code', 0) == 200 and resp.get('data', None):
-                    data.append(resp.get('data'))
+                    data[oil_type] = resp.get('data')
                 else:
-                    data.append({})
+                    data[oil_type] = {}
         return data
 
     @daily_cache
-    async def jina_oil_data_old(self):
+    async def get_oil_data_from_qiyoujiage(self):
         urls = {
-            "92": "http://www.qiyoujiage.com/92.shtml",
-            "95": "http://www.qiyoujiage.com/95.shtml",
-            "98": "http://www.qiyoujiage.com/98.shtml",
-            "chaiyou": "http://www.qiyoujiage.com/chaiyou.shtml",
+            "92": f"{self.prefix_proxy}http://www.qiyoujiage.com/92.shtml",
+            "95": f"{self.prefix_proxy}http://www.qiyoujiage.com/95.shtml",
+            "98": f"{self.prefix_proxy}http://www.qiyoujiage.com/98.shtml",
+            "chaiyou": f"{self.prefix_proxy}http://www.qiyoujiage.com/chaiyou.shtml",
         }
         data = {}
         provider = self.context.get_provider_by_id(self.sub_provider)
@@ -86,11 +105,6 @@ class OilTool:
         header = {
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Host": "www.qiyoujiage.com",
-            "Pragma": "no-cache",
-            "Upgrade-Insecure-Requests": "1"
         }
 
         async def generate_json(_rating, _url):
@@ -148,7 +162,7 @@ class OilTool:
 
     @daily_cache
     async def get_oil_forecast(self):
-        forecast_url = "https://proxy.86868866.xyz/738864/http://www.qiyoujiage.com/"
+        forecast_url = f"{self.prefix_proxy or self.default_prefix_proxy}http://www.qiyoujiage.com/"
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(forecast_url) as resp:
@@ -180,7 +194,7 @@ class OilTool:
             return {}
 
     @daily_cache
-    async def jina_oil_data(self):
+    async def get_oil_data_from_chacha138(self):
         urls = {
             "92": "https://youjia.chacha138.com/92haoyoujiage/",
             "95": "https://youjia.chacha138.com/95haoyoujiage/",

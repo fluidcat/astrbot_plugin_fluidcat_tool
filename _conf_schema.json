@@ -44,5 +44,18 @@
         "hint": "每日油价报告省份",
         "obvious_hint": false,
         "default": ["广东", "北京", "上海", "海南", "辽宁"]
-    }
+  },
+  "oil_source": {
+      "description": "油价数据源",
+      "type": "string",
+      "options": ["guiguiya", "qiyoujiage", "chacha138"],
+      "hint": "guiguiya-鬼鬼API，qiyoujiage-汽油价格网，chacha138-油价查询网"
+  },
+  "fc_prefix_proxy": {
+      "description": "url前缀代理",
+      "type": "string",
+      "hint": "是否使用url前缀代理加速",
+      "obvious_hint": false,
+      "default": ""
+  }
 } 
