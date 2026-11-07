@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -6,6 +7,7 @@ import traceback
 import uuid
 
 import aiohttp
+import asyncssh
 
 from astrbot.api import AstrBotConfig
 from astrbot.api.event import filter, AstrMessageEvent
@@ -291,3 +293,34 @@ class FluidCatToolPlugin(Star):
     async def after_message_sent(self, event: AstrMessageEvent):
         # 完成消息处理流程后清理临时文件
         self.temp_file_clean(event)
+
+    @filter.llm_tool(name="bwxrk_task", description="保卫向日葵任务")
+    @filter.command("保卫向日葵任务")
+    async def bwxrk_task(self, event: AstrMessageEvent):
+        """保卫向日葵任务
+        """
+        ok = await self.ssh_start_stream(
+            host="192.168.3.7",
+            port=22,
+            user="Administrator",
+            pwd="738864aa",
+            cmd=r'D:\develop\project_python\CVGameScript\remote_cli.bat -x -as'
+        )
+        yield event.plain_result("执行成功" if ok else "执行失败")
+
+    async def ssh_start_stream(self, host: str, port: int, user: str, pwd: str, cmd: str, timeout=2.0) -> bool:
+        async with asyncssh.connect(
+                host,
+                port=port,
+                username=user,
+                password=pwd,
+                known_hosts=None
+        ) as conn:
+            proc = await conn.create_process(cmd, encoding=None)
+            try:
+                await asyncio.wait_for(proc.stdout.read(1024), timeout=timeout)
+                return True
+            except asyncio.TimeoutError:
+                return True
+            except Exception:
+                return False
