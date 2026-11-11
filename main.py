@@ -309,7 +309,7 @@ class FluidCatToolPlugin(Star):
         PC_MAC = "70:4D:7B:B2:AE:F7"
         if not ping(PC_IP, timeout=2):
             yield event.plain_result("正在尝试唤醒Windows电脑")
-            wakeonlan.wake(PC_MAC)
+            wakeonlan.wake(PC_MAC, host="192.168.3.255")
             if ping(PC_IP, timeout=60):
                 yield event.plain_result("Windows电脑已上线")
             else:
