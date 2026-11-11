@@ -1,3 +1,5 @@
 lxml
 cachetools
 asyncssh
+ping3
+wakeonlan

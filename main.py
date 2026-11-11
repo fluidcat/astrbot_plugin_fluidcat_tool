@@ -1,6 +1,10 @@
 import asyncio
 import json
 import os
+import platform
+import socket
+import subprocess
+import time
 from pathlib import Path
 import shutil
 import traceback
@@ -8,6 +12,8 @@ import uuid
 
 import aiohttp
 import asyncssh
+import wakeonlan
+from ping3 import ping
 
 from astrbot.api import AstrBotConfig
 from astrbot.api.event import filter, AstrMessageEvent
@@ -299,8 +305,24 @@ class FluidCatToolPlugin(Star):
     async def bwxrk_task(self, event: AstrMessageEvent):
         """保卫向日葵任务
         """
+        PC_IP = "192.168.3.7"
+        PC_MAC = "70:4D:7B:B2:AE:F7"
+        if not ping(PC_IP, timeout=2):
+            yield event.plain_result("正在尝试唤醒Windows电脑")
+            wakeonlan.wake(PC_MAC)
+            if ping(PC_IP, timeout=60):
+                yield event.plain_result("Windows电脑已上线")
+            else:
+                yield event.plain_result("Windows电脑唤醒失败，任务结束")
+                return
+        yield event.plain_result("正在进入Windows电脑桌面")
+        unlock, msg = await self.unlock(PC_IP)
+        yield event.plain_result(msg)
+        if not unlock:
+            return
+
         ok = await self.ssh_start_stream(
-            host="192.168.3.7",
+            host=PC_IP,
             port=22,
             user="Administrator",
             pwd="738864aa",
@@ -324,3 +346,40 @@ class FluidCatToolPlugin(Star):
                 return True
             except Exception:
                 return False
+
+    async def unlock(self, host="127.0.0.1", port=2085, timeout=60.0, interval=1.0):
+        base = f"http://{host}:{port}"
+        req_timeout = aiohttp.ClientTimeout(total=5)
+
+        async with aiohttp.ClientSession(trust_env=False) as ses:
+            try:
+                async with ses.post(f"{base}/unlock", timeout=req_timeout) as resp:
+                    data = await resp.json()
+            except aiohttp.ClientError as e:
+                return False, f"[x] 连接失败 {base}: {e}"
+
+            if data.get("code") not in ("ok", "already_unlocked"):
+                return False, f"[x] POST /unlock HTTP {resp.status} code={data.get('code')} {data.get('message', '')}"
+            if not data.get("locked"):
+                return True, "[√] 已是未锁状态"
+
+            deadline = asyncio.get_event_loop().time() + timeout
+            cnt = 0
+            while asyncio.get_event_loop().time() < deadline:
+                cnt += 1
+                try:
+                    async with ses.get(f"{base}/state", timeout=req_timeout) as r:
+                        state = await r.json()
+                except aiohttp.ClientError:
+                    await asyncio.sleep(interval)
+                    continue
+                if not state.get("locked"):
+                    return True, f"[√] 已解锁（轮询 {cnt} 次）"
+                await asyncio.sleep(interval)
+
+            try:
+                async with ses.get(f"{base}/state", timeout=req_timeout) as r:
+                    final = await r.json()
+            except aiohttp.ClientError:
+                final = "无法获取状态"
+            return False, f"[x] {timeout:.0f}s 超时，最终状态: {final}"
