@@ -21,6 +21,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.core import logger
 from astrbot.core.message.components import Music, Plain, Record
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+from astrbot.core.utils.io import download_image_by_url
 from astrbot.core.utils.tencent_record_helper import tencent_silk_to_wav
 from .oil_tool import OilTool
 from .stt import STT
@@ -306,21 +307,23 @@ class FluidCatToolPlugin(Star):
         """保卫向日葵任务
         """
         PC_IP = "192.168.3.7"
+        PC_PORT = 2085
         PC_MAC = "70:4D:7B:B2:AE:F7"
         if not ping(PC_IP, timeout=2):
             yield event.plain_result("正在尝试唤醒Windows电脑")
             wakeonlan.wake(PC_MAC, host="192.168.3.255")
             wakeonlan.wake(PC_MAC, host=PC_IP)
             wakeonlan.wake(PC_MAC)
-            if ping(PC_IP, timeout=60):
+            ok = self.wait_ping_online(PC_IP, max_wait=60, interval=2)
+            if ok:
                 yield event.plain_result("Windows电脑已上线")
             else:
                 yield event.plain_result("Windows电脑唤醒失败，任务结束")
                 return
         yield event.plain_result("正在进入Windows电脑桌面")
-        unlock, msg = await self.unlock(PC_IP)
-        yield event.plain_result(msg)
+        unlock, msg = await self.unlock(PC_IP, PC_PORT)
         if not unlock:
+            yield event.plain_result(f"Windows：{msg}")
             return
 
         ok = await self.ssh_start_stream(
@@ -330,7 +333,13 @@ class FluidCatToolPlugin(Star):
             pwd="738864aa",
             cmd=r'D:\develop\project_python\CVGameScript\remote_cli.bat -x -as'
         )
-        yield event.plain_result("执行成功" if ok else "执行失败")
+        yield event.plain_result("任务开始执行" if ok else "任务执行失败")
+        try:
+            path = await download_image_by_url(f"http://{PC_IP}:{PC_PORT}/screen")
+            yield event.image_result(path)
+        except:
+            logger.warn(f"保卫向日葵任务 获取屏幕截图失败")
+
 
     async def ssh_start_stream(self, host: str, port: int, user: str, pwd: str, cmd: str, timeout=2.0) -> bool:
         async with asyncssh.connect(
@@ -349,6 +358,14 @@ class FluidCatToolPlugin(Star):
             except Exception:
                 return False
 
+    def wait_ping_online(self, ip, max_wait=60, interval=2):
+        deadline = time.monotonic() + max_wait
+        while time.monotonic() < deadline:
+            if ping(ip, timeout=2):
+                return True
+            time.sleep(interval)
+        return False
+
     async def unlock(self, host="127.0.0.1", port=2085, timeout=60.0, interval=1.0):
         base = f"http://{host}:{port}"
         req_timeout = aiohttp.ClientTimeout(total=5)
@@ -358,12 +375,12 @@ class FluidCatToolPlugin(Star):
                 async with ses.post(f"{base}/unlock", timeout=req_timeout) as resp:
                     data = await resp.json()
             except aiohttp.ClientError as e:
-                return False, f"[x] 连接失败 {base}: {e}"
+                return False, "网络请求失败"
 
             if data.get("code") not in ("ok", "already_unlocked"):
-                return False, f"[x] POST /unlock HTTP {resp.status} code={data.get('code')} {data.get('message', '')}"
+                return False, data.get('message', '')
             if not data.get("locked"):
-                return True, "[√] 已是未锁状态"
+                return True, "已解锁"
 
             deadline = asyncio.get_event_loop().time() + timeout
             cnt = 0
@@ -376,7 +393,7 @@ class FluidCatToolPlugin(Star):
                     await asyncio.sleep(interval)
                     continue
                 if not state.get("locked"):
-                    return True, f"[√] 已解锁（轮询 {cnt} 次）"
+                    return True, f"已解锁（轮询 {cnt} 次）"
                 await asyncio.sleep(interval)
 
             try:
@@ -384,4 +401,4 @@ class FluidCatToolPlugin(Star):
                     final = await r.json()
             except aiohttp.ClientError:
                 final = "无法获取状态"
-            return False, f"[x] {timeout:.0f}s 超时，最终状态: {final}"
+            return False, f"{timeout:.0f}s 超时，最终状态: {final}"
